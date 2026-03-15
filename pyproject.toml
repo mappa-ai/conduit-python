@@ -1,6 +1,6 @@
 [project]
 name = "mappa-conduit"
-version = "0.1.6"
+version = "0.1.7"
 description = "Official Python SDK for the Conduit API"
 readme = "README.md"
 license = "MIT"
