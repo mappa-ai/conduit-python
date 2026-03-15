@@ -1,0 +1,56 @@
+[project]
+name = "conduit"
+version = "0.1.0"
+description = "Official Python SDK for the Conduit API"
+readme = "README.md"
+authors = [
+    { name = "drsh4dow", email = "daniel.morettiv@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.408",
+    "pytest>=9.0.2",
+    "ruff>=0.15.6",
+]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+reportCallInDefaultInitializer = "error"
+reportImplicitOverride = "error"
+reportImportCycles = "error"
+reportImplicitStringConcatenation = "error"
+reportMissingTypeArgument = "error"
+reportMissingTypeStubs = "error"
+reportPrivateUsage = "error"
+reportPropertyTypeMismatch = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnknownArgumentType = "error"
+reportUnknownLambdaType = "error"
+reportUnknownMemberType = "error"
+reportUnknownParameterType = "error"
+reportUnknownVariableType = "error"
+reportUnnecessaryCast = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["A001", "COM812", "EM101", "EM102", "PLR0913", "PLR2004", "TRY003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S105"]
