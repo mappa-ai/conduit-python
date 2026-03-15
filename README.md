@@ -5,7 +5,7 @@ Official Python SDK for the Conduit API.
 ## Install
 
 ```bash
-pip install conduit
+pip install mappa-conduit
 ```
 
 ## Quickstart
