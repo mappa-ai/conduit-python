@@ -1,4 +1,4 @@
-"""Structured response models for the Conduit Python SDK."""
+"""Structured models and parsers for the Conduit Python SDK."""
 
 from __future__ import annotations
 
@@ -15,6 +15,17 @@ def _mapping(value: object, name: str) -> Mapping[str, object]:
     raise ConduitError(f"Invalid {name}: expected object", code="invalid_response")
 
 
+def _optional_mapping(value: object) -> Mapping[str, object] | None:
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        return cast("Mapping[str, object]", value)
+    raise ConduitError(
+        "Invalid response: expected object or null",
+        code="invalid_response",
+    )
+
+
 def _string(value: object, name: str) -> str:
     if isinstance(value, str):
         return value
@@ -27,12 +38,13 @@ def _optional_string(value: object) -> str | None:
     if isinstance(value, str):
         return value
     raise ConduitError(
-        "Invalid response: expected string or null", code="invalid_response"
+        "Invalid response: expected string or null",
+        code="invalid_response",
     )
 
 
 def _float(value: object, name: str) -> float:
-    if isinstance(value, int | float):
+    if isinstance(value, int | float) and not isinstance(value, bool):
         return float(value)
     raise ConduitError(f"Invalid {name}: expected number", code="invalid_response")
 
@@ -40,10 +52,11 @@ def _float(value: object, name: str) -> float:
 def _optional_float(value: object) -> float | None:
     if value is None:
         return None
-    if isinstance(value, int | float):
+    if isinstance(value, int | float) and not isinstance(value, bool):
         return float(value)
     raise ConduitError(
-        "Invalid response: expected number or null", code="invalid_response"
+        "Invalid response: expected number or null",
+        code="invalid_response",
     )
 
 
@@ -66,7 +79,8 @@ def _optional_bool(value: object) -> bool | None:
     if isinstance(value, bool):
         return value
     raise ConduitError(
-        "Invalid response: expected boolean or null", code="invalid_response"
+        "Invalid response: expected boolean or null",
+        code="invalid_response",
     )
 
 
@@ -74,10 +88,19 @@ def _dict(value: object | None) -> dict[str, Any] | None:
     if value is None:
         return None
     if isinstance(value, Mapping):
-        return dict(cast("Mapping[str, Any]", value))
+        mapping = cast("Mapping[object, Any]", value)
+        return {str(key): item for key, item in mapping.items()}
     raise ConduitError(
-        "Invalid response: expected object or null", code="invalid_response"
+        "Invalid response: expected object or null",
+        code="invalid_response",
     )
+
+
+def _first_value(data: Mapping[str, object], *keys: str) -> object | None:
+    for key in keys:
+        if key in data:
+            return data[key]
+    return None
 
 
 @dataclass(slots=True)
@@ -181,7 +204,7 @@ class MatchingOutputData:
 
 
 @dataclass(slots=True)
-class MatchingAnalysisResponse:
+class Matching:
     """Completed matching resource."""
 
     id: str
@@ -192,6 +215,9 @@ class MatchingAnalysisResponse:
     label: str | None = None
     target: MatchingResolvedSubject | None = None
     group: list[MatchingResolvedSubject] | None = None
+
+
+MatchingAnalysisResponse = Matching
 
 
 @dataclass(slots=True)
@@ -347,16 +373,33 @@ def parse_job(value: object) -> Job:
 def parse_report(value: object) -> Report:
     """Parse a report response payload."""
     data = _mapping(value, "report")
-    media_data = _mapping(data.get("media"), "report.media")
     output_data = _mapping(data.get("output"), "report.output")
+    entity_data = _optional_mapping(data.get("entity"))
+    media_data = _optional_mapping(data.get("media"))
 
-    entity_id = None
-    entity_label = None
-    entity_data = data.get("entity")
-    if entity_data is not None:
-        entity_map = _mapping(entity_data, "report.entity")
-        entity_id = _string(entity_map.get("id"), "report.entity.id")
-        entity_label = _optional_string(entity_map.get("label"))
+    entity_id = _optional_string(_first_value(data, "entityId"))
+    if entity_id is None and entity_data is not None:
+        entity_id = _string(entity_data.get("id"), "report.entity.id")
+
+    entity_label = _optional_string(_first_value(data, "entityLabel"))
+    if entity_label is None and entity_data is not None:
+        entity_label = _optional_string(entity_data.get("label"))
+
+    media_id = _optional_string(_first_value(data, "mediaId"))
+    if media_id is None and media_data is not None:
+        media_id = _optional_string(media_data.get("mediaId"))
+
+    report_url = _optional_string(output_data.get("reportUrl"))
+    if report_url is None and media_data is not None:
+        report_url = _optional_string(media_data.get("url"))
+
+    output_markdown = _optional_string(output_data.get("markdown"))
+    if output_markdown is None:
+        output_markdown = _optional_string(data.get("markdown"))
+
+    output_json = _dict(output_data.get("json"))
+    if output_json is None:
+        output_json = _dict(data.get("json"))
 
     return Report(
         id=_string(data.get("id"), "report.id"),
@@ -365,12 +408,12 @@ def parse_report(value: object) -> Report:
         label=_optional_string(data.get("label")),
         entity_id=entity_id,
         entity_label=entity_label,
-        media_id=_optional_string(media_data.get("mediaId")),
+        media_id=media_id,
         output=ReportOutputData(
             template=_string(output_data.get("template"), "report.output.template"),
-            markdown=_optional_string(data.get("markdown")),
-            json=_dict(data.get("json")),
-            report_url=_optional_string(media_data.get("url")),
+            markdown=output_markdown,
+            json=output_json,
+            report_url=report_url,
         ),
     )
 
@@ -380,15 +423,18 @@ def parse_matching_subject(value: object) -> MatchingResolvedSubject:
     data = _mapping(value, "matching subject")
     source = _mapping(data.get("source"), "matching subject.source")
     return MatchingResolvedSubject(
-        source=dict(cast("Mapping[str, Any]", source)),
-        entity_id=_optional_string(data.get("entityId")),
-        resolved_label=_optional_string(data.get("resolvedLabel")),
+        source={str(key): item for key, item in source.items()},
+        entity_id=_optional_string(_first_value(data, "entityId", "entity_id")),
+        resolved_label=_optional_string(
+            _first_value(data, "resolvedLabel", "resolved_label")
+        ),
     )
 
 
-def parse_matching(value: object) -> MatchingAnalysisResponse:
+def parse_matching(value: object) -> Matching:
     """Parse a matching response payload."""
     data = _mapping(value, "matching")
+    output_data = _optional_mapping(data.get("output")) or {}
 
     group_value = data.get("group")
     group = None
@@ -401,7 +447,15 @@ def parse_matching(value: object) -> MatchingAnalysisResponse:
     target_value = data.get("target")
     target = parse_matching_subject(target_value) if target_value is not None else None
 
-    return MatchingAnalysisResponse(
+    output_markdown = _optional_string(output_data.get("markdown"))
+    if output_markdown is None:
+        output_markdown = _optional_string(data.get("markdown"))
+
+    output_json = _dict(output_data.get("json"))
+    if output_json is None:
+        output_json = _dict(data.get("json"))
+
+    return Matching(
         id=_string(data.get("id"), "matching.id"),
         created_at=_string(data.get("createdAt"), "matching.createdAt"),
         context=_string(data.get("context"), "matching.context"),
@@ -410,8 +464,8 @@ def parse_matching(value: object) -> MatchingAnalysisResponse:
         target=target,
         group=group,
         output=MatchingOutputData(
-            markdown=_optional_string(data.get("markdown")),
-            json=_dict(data.get("json")),
+            markdown=output_markdown,
+            json=output_json,
         ),
     )
 
@@ -439,7 +493,8 @@ def parse_media_file(value: object) -> MediaFile:
         content_type=_string(data.get("contentType"), "media.contentType"),
         label=_string(data.get("label"), "media.label"),
         processing_status=_string(
-            data.get("processingStatus"), "media.processingStatus"
+            data.get("processingStatus"),
+            "media.processingStatus",
         ),
         last_used_at=_optional_string(data.get("lastUsedAt")),
         retention=MediaRetention(
@@ -458,7 +513,8 @@ def parse_list_files(value: object) -> ListFilesResponse:
     files = data.get("files")
     if not isinstance(files, list):
         raise ConduitError(
-            "Invalid files list: expected files array", code="invalid_response"
+            "Invalid files list: expected files array",
+            code="invalid_response",
         )
     file_items = cast("list[object]", files)
     return ListFilesResponse(
@@ -548,6 +604,7 @@ __all__ = [
     "JobEvent",
     "ListEntitiesResponse",
     "ListFilesResponse",
+    "Matching",
     "MatchingAnalysisResponse",
     "MatchingOutputData",
     "MatchingResolvedSubject",

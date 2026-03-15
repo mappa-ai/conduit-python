@@ -16,7 +16,7 @@ class ConduitError(Exception):
         request_id: str | None = None,
         cause: BaseException | None = None,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the base SDK error."""
         super().__init__(message)
         self.code = code
         self.request_id = request_id
@@ -48,7 +48,7 @@ class SourceError(ConduitError):
         url: str | None = None,
         status: int | None = None,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the source error."""
         super().__init__(
             message,
             code=code,
@@ -87,7 +87,7 @@ class ApiError(ConduitError):
         request_id: str | None = None,
         details: object | None = None,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the API error."""
         super().__init__(message, code=code, request_id=request_id)
         self.status = status
         self.details = details
@@ -114,7 +114,7 @@ class RateLimitError(ApiError):
         details: object | None = None,
         retry_after_ms: int | None = None,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the rate limit error."""
         super().__init__(
             message,
             status=status,
@@ -139,7 +139,7 @@ class InsufficientCreditsError(ApiError):
         required: int = 0,
         available: int = 0,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the insufficient credits error."""
         super().__init__(
             message,
             status=status,
@@ -163,7 +163,7 @@ class JobFailedError(ConduitError):
         request_id: str | None = None,
         cause: BaseException | None = None,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the job failed error."""
         super().__init__(message, code=code, request_id=request_id, cause=cause)
         self.job_id = job_id
 
@@ -180,7 +180,7 @@ class JobCanceledError(ConduitError):
         request_id: str | None = None,
         cause: BaseException | None = None,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the job canceled error."""
         super().__init__(message, code=code, request_id=request_id, cause=cause)
         self.job_id = job_id
 
@@ -215,13 +215,21 @@ class StreamError(ConduitError):
         request_id: str | None = None,
         cause: BaseException | None = None,
     ) -> None:
-        """Initialize the error."""
+        """Initialize the stream error."""
         super().__init__(
-            message, code="stream_error", request_id=request_id, cause=cause
+            message,
+            code="stream_error",
+            request_id=request_id,
+            cause=cause,
         )
         self.job_id = job_id
         self.last_event_id = last_event_id
         self.retry_count = retry_count
+        self.stream_context = StreamContext(
+            job_id=job_id,
+            last_event_id=last_event_id,
+            retry_count=retry_count,
+        )
 
 
 __all__ = [

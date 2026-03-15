@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import secrets
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
+from urllib.parse import urlencode, urljoin
 from uuid import uuid4
 
 import httpx
@@ -18,14 +20,14 @@ from .errors import (
     ConduitError,
     InsufficientCreditsError,
     RateLimitError,
+    RequestAbortedError,
     ValidationError,
 )
-from .errors import (
-    TimeoutError as ConduitTimeoutError,
-)
+from .errors import TimeoutError as ConduitTimeoutError
+from .types import ErrorTelemetry, RequestTelemetry, ResponseTelemetry, TelemetryHooks
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterator, Mapping
 
 
 @dataclass(slots=True)
@@ -38,8 +40,16 @@ class TransportResponse:
     headers: httpx.Headers
 
 
+@dataclass(slots=True)
+class StreamConnection:
+    """Open streaming response metadata."""
+
+    response: httpx.Response
+    request_id: str
+
+
 class Transport:
-    """Small authenticated transport with retry support."""
+    """Authenticated transport with retry support."""
 
     def __init__(
         self,
@@ -49,21 +59,41 @@ class Transport:
         timeout_ms: int,
         max_retries: int,
         user_agent: str | None = None,
+        http_client: httpx.Client | None = None,
+        telemetry: TelemetryHooks | None = None,
     ) -> None:
-        """Initialize the transport."""
         self._api_key = api_key
-        self._timeout_ms = timeout_ms
+        self._base_url = base_url.rstrip("/")
         self._max_retries = max_retries
+        self._telemetry = telemetry
+        self._timeout_ms = timeout_ms
         self._user_agent = user_agent
-        self._client = httpx.Client(
-            base_url=base_url.rstrip("/"),
+        self._owns_client = http_client is None
+        self._client = http_client or httpx.Client(
+            base_url=self._base_url,
             follow_redirects=False,
             timeout=timeout_ms / 1000,
         )
 
+    @property
+    def base_url(self) -> str:
+        """Return the configured API base URL."""
+        return self._base_url
+
+    @property
+    def max_retries(self) -> int:
+        """Return the configured retry budget."""
+        return self._max_retries
+
+    @property
+    def timeout_ms(self) -> int:
+        """Return the default request timeout in milliseconds."""
+        return self._timeout_ms
+
     def close(self) -> None:
-        """Close the underlying HTTP client."""
-        self._client.close()
+        """Close the underlying HTTP client when owned by the SDK."""
+        if self._owns_client:
+            self._client.close()
 
     def request(
         self,
@@ -72,7 +102,7 @@ class Transport:
         *,
         json_body: object | None = None,
         data: Mapping[str, str] | None = None,
-        files: Mapping[str, tuple[str, bytes, str | None]] | None = None,
+        files: object | None = None,
         query: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
         request_id: str | None = None,
@@ -85,6 +115,9 @@ class Transport:
         attempts = self._max_retries + 1 if retryable else 1
 
         for attempt in range(1, attempts + 1):
+            started = time.monotonic()
+            url = self._full_url(path, query)
+            self._emit_request(method, resolved_request_id, url)
             try:
                 response = self._client.request(
                     method,
@@ -92,7 +125,7 @@ class Transport:
                     params=query,
                     json=json_body,
                     data=data,
-                    files=files,
+                    files=cast("Any", files),
                     headers=self._headers(
                         request_id=resolved_request_id,
                         idempotency_key=idempotency_key,
@@ -100,22 +133,6 @@ class Transport:
                     ),
                     timeout=(timeout_ms or self._timeout_ms) / 1000,
                 )
-                server_request_id = response.headers.get(
-                    "x-request-id", resolved_request_id
-                )
-                if response.is_success:
-                    return TransportResponse(
-                        data=_read_response_data(response),
-                        status=response.status_code,
-                        request_id=server_request_id,
-                        headers=response.headers,
-                    )
-
-                error = _coerce_api_error(response, server_request_id)
-                if attempt < attempts and _should_retry_error(error):
-                    _sleep(_retry_after_ms(error, attempt))
-                    continue
-                raise error
             except httpx.TimeoutException as exc:
                 error = ConduitTimeoutError(
                     f"Request timed out after {timeout_ms or self._timeout_ms}ms",
@@ -123,6 +140,7 @@ class Transport:
                     request_id=resolved_request_id,
                     cause=exc,
                 )
+                self._emit_error(method, resolved_request_id, url, started, error)
                 if attempt < attempts:
                     _sleep(_backoff_ms(attempt))
                     continue
@@ -134,19 +152,118 @@ class Transport:
                     request_id=resolved_request_id,
                     cause=exc,
                 )
+                self._emit_error(method, resolved_request_id, url, started, error)
                 if attempt < attempts:
                     _sleep(_backoff_ms(attempt))
                     continue
                 raise error from exc
 
+            server_request_id = response.headers.get(
+                "x-request-id", resolved_request_id
+            )
+            self._emit_response(
+                method,
+                server_request_id,
+                url,
+                started,
+                response.status_code,
+            )
+            if response.is_success:
+                return TransportResponse(
+                    data=_read_response_data(response),
+                    status=response.status_code,
+                    request_id=server_request_id,
+                    headers=response.headers,
+                )
+
+            error = _coerce_api_error(response, server_request_id)
+            self._emit_error(method, server_request_id, url, started, error)
+            if attempt < attempts and _should_retry_error(error):
+                _sleep(_retry_after_ms(error, attempt))
+                continue
+            raise error
+
         raise ConduitError("Unexpected transport exit", code="transport_error")
+
+    @contextmanager
+    def open_stream(
+        self,
+        path: str,
+        *,
+        query: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None,
+        request_id: str | None = None,
+        last_event_id: str | None = None,
+        timeout_ms: int | None = None,
+    ) -> Iterator[StreamConnection]:
+        """Open an authenticated streaming request."""
+        resolved_request_id = request_id or f"req_{uuid4().hex}"
+        request_headers = self._headers(request_id=resolved_request_id, headers=headers)
+        if last_event_id:
+            request_headers["Last-Event-ID"] = last_event_id
+        url = self._full_url(path, query)
+        started = time.monotonic()
+        self._emit_request("GET", resolved_request_id, url)
+        try:
+            with self._client.stream(
+                "GET",
+                path,
+                params=query,
+                headers=request_headers,
+                timeout=(timeout_ms or self._timeout_ms) / 1000,
+            ) as response:
+                server_request_id = response.headers.get(
+                    "x-request-id",
+                    resolved_request_id,
+                )
+                self._emit_response(
+                    "GET",
+                    server_request_id,
+                    url,
+                    started,
+                    response.status_code,
+                )
+                if not response.is_success:
+                    error = _coerce_api_error(response, server_request_id)
+                    self._emit_error("GET", server_request_id, url, started, error)
+                    raise error
+                yield StreamConnection(response=response, request_id=server_request_id)
+        except httpx.TimeoutException as exc:
+            error = ConduitTimeoutError(
+                f"Request timed out after {timeout_ms or self._timeout_ms}ms",
+                code="timeout",
+                request_id=resolved_request_id,
+                cause=exc,
+            )
+            self._emit_error("GET", resolved_request_id, url, started, error)
+            raise error from exc
+        except httpx.HTTPError as exc:
+            error = ConduitError(
+                "Request failed",
+                code="transport_error",
+                request_id=resolved_request_id,
+                cause=exc,
+            )
+            self._emit_error("GET", resolved_request_id, url, started, error)
+            raise error from exc
+
+    def aborted(
+        self, *, request_id: str | None = None, cause: BaseException | None = None
+    ) -> RequestAbortedError:
+        """Create a typed request-aborted error."""
+        return RequestAbortedError(
+            "Request aborted by caller",
+            code="request_aborted",
+            request_id=request_id,
+            cause=cause,
+        )
 
     def _headers(
         self,
         *,
         request_id: str,
-        idempotency_key: str | None,
-        headers: Mapping[str, str] | None,
+        idempotency_key: str | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> dict[str, str]:
         values = {
             "Mappa-Api-Key": self._api_key,
@@ -159,6 +276,59 @@ class Transport:
         if headers:
             values.update(headers)
         return values
+
+    def _emit_request(self, method: str, request_id: str, url: str) -> None:
+        if self._telemetry is None or self._telemetry.on_request is None:
+            return
+        self._telemetry.on_request(
+            RequestTelemetry(method=method, request_id=request_id, url=url)
+        )
+
+    def _emit_response(
+        self,
+        method: str,
+        request_id: str,
+        url: str,
+        started: float,
+        status: int,
+    ) -> None:
+        if self._telemetry is None or self._telemetry.on_response is None:
+            return
+        self._telemetry.on_response(
+            ResponseTelemetry(
+                duration_ms=(time.monotonic() - started) * 1000,
+                method=method,
+                request_id=request_id,
+                status=status,
+                url=url,
+            )
+        )
+
+    def _emit_error(
+        self,
+        method: str,
+        request_id: str,
+        url: str,
+        started: float,
+        error: BaseException,
+    ) -> None:
+        if self._telemetry is None or self._telemetry.on_error is None:
+            return
+        self._telemetry.on_error(
+            ErrorTelemetry(
+                duration_ms=(time.monotonic() - started) * 1000,
+                error=error,
+                method=method,
+                request_id=request_id,
+                url=url,
+            )
+        )
+
+    def _full_url(self, path: str, query: Mapping[str, str] | None) -> str:
+        base_url = urljoin(f"{self._base_url}/", path.lstrip("/"))
+        if query is None:
+            return base_url
+        return f"{base_url}?{urlencode(query)}"
 
 
 def _read_response_data(response: httpx.Response) -> object:
@@ -286,7 +456,11 @@ def _should_retry_error(error: Exception) -> bool:
         return True
     if isinstance(error, ApiError):
         return error.status >= 500
-    return False
+    return (
+        error.code in {"timeout", "transport_error"}
+        if isinstance(error, ConduitError)
+        else False
+    )
 
 
 def _retry_after_ms(error: Exception, attempt: int) -> int:
@@ -305,4 +479,4 @@ def _sleep(duration_ms: int) -> None:
     time.sleep(duration_ms / 1000)
 
 
-__all__ = ["Transport", "TransportResponse"]
+__all__ = ["StreamConnection", "Transport", "TransportResponse"]
