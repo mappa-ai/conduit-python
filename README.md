@@ -417,7 +417,7 @@ except JobFailedError as error:
 
 Client defaults:
 
-- `timeout_ms=30000`
+- `timeout_ms=300000`
 - `max_retries=2`
 
 Behavior:
@@ -465,7 +465,7 @@ from conduit import Conduit
 conduit = Conduit(
     api_key="sk_...",
     base_url="https://api.mappa.ai",
-    timeout_ms=30_000,
+    timeout_ms=300_000,
     max_retries=2,
 )
 ```

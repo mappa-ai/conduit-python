@@ -36,7 +36,7 @@ class Conduit:
         *,
         api_key: str,
         base_url: str = "https://api.mappa.ai",
-        timeout_ms: int = 30000,
+        timeout_ms: int = 300000,
         max_retries: int = 2,
         max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES,
         user_agent: str | None = None,
