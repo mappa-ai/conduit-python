@@ -55,6 +55,7 @@ class Transport:
         self,
         *,
         api_key: str,
+        auth_header_name: str = "Mappa-Api-Key",
         base_url: str,
         timeout_ms: int,
         max_retries: int,
@@ -63,6 +64,7 @@ class Transport:
         telemetry: TelemetryHooks | None = None,
     ) -> None:
         self._api_key = api_key
+        self._auth_header_name = auth_header_name
         self._base_url = base_url.rstrip("/")
         self._max_retries = max_retries
         self._telemetry = telemetry
@@ -266,7 +268,7 @@ class Transport:
         headers: Mapping[str, str] | None = None,
     ) -> dict[str, str]:
         values = {
-            "Mappa-Api-Key": self._api_key,
+            self._auth_header_name: self._api_key,
             "X-Request-Id": request_id,
         }
         if self._user_agent:

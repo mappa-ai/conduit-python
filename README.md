@@ -499,6 +499,33 @@ Preferred public keys are snake_case:
 - `end_seconds`
 - `on_miss`
 
+## Internal-only surface
+
+Python also exposes a trusted-backend-only internal module for reading persisted
+behavior maps. This is not part of the stable public SDK contract.
+
+```python
+from conduit.internal import InternalConduit
+
+internal_conduit = InternalConduit(internal_api_key="internal_...")
+
+exported = internal_conduit.behavior_maps.get("ent_123")
+
+print(exported.map_id)
+print(
+    exported.behavior_map["trait_baseline"]["hexaco"]["agreeableness"]["facet"][
+        "normalized"
+    ]
+)
+```
+
+Rules:
+
+- sends `x-internal-key`, never `Mappa-Api-Key`
+- reads the latest persisted behavior map only
+- returns `404` when no persisted map exists
+- intended for trusted server-side integrations only
+
 ## Local checks
 
 ```bash

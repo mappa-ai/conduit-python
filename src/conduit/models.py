@@ -248,6 +248,7 @@ class MediaFile:
     media_id: str
     created_at: str
     content_type: str
+    has_reports: bool
     label: str
     processing_status: str
     last_used_at: str | None
@@ -491,6 +492,7 @@ def parse_media_file(value: object) -> MediaFile:
         media_id=_string(data.get("mediaId"), "media.mediaId"),
         created_at=_string(data.get("createdAt"), "media.createdAt"),
         content_type=_string(data.get("contentType"), "media.contentType"),
+        has_reports=_bool(data.get("hasReports"), "media.hasReports"),
         label=_string(data.get("label"), "media.label"),
         processing_status=_string(
             data.get("processingStatus"),
