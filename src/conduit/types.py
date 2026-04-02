@@ -8,10 +8,10 @@ from typing import Any, BinaryIO, Literal, NotRequired, Protocol, TypedDict
 
 REPORT_TEMPLATE_GENERAL_REPORT = "general_report"
 REPORT_TEMPLATE_SALES_PLAYBOOK = "sales_playbook"
-MATCHING_CONTEXT_HIRING_TEAM_FIT = "hiring_team_fit"
+MATCHING_CONTEXT_BEHAVIORAL_COMPATIBILITY = "behavioral_compatibility"
 
 ReportTemplate = Literal["general_report", "sales_playbook"]
-MatchingContext = Literal["hiring_team_fit"]
+MatchingContext = Literal["behavioral_compatibility"]
 OnMiss = Literal["error", "fallback_dominant"]
 TargetStrategy = Literal["dominant", "timerange", "entity_id", "magic_hint"]
 
@@ -170,7 +170,7 @@ MatchingSubjectRef = MatchingEntityRef | MatchingMediaRef
 
 
 __all__ = [
-    "MATCHING_CONTEXT_HIRING_TEAM_FIT",
+    "MATCHING_CONTEXT_BEHAVIORAL_COMPATIBILITY",
     "REPORT_TEMPLATE_GENERAL_REPORT",
     "REPORT_TEMPLATE_SALES_PLAYBOOK",
     "BinaryLike",

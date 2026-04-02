@@ -67,7 +67,7 @@ def test_matching_get_normalizes_legacy_backend_shape() -> None:
             200,
             headers={"x-request-id": "req_123"},
             json={
-                "context": "hiring_team_fit",
+                "context": "behavioral_compatibility",
                 "createdAt": "2026-03-15T00:00:00Z",
                 "group": [
                     {
@@ -105,7 +105,7 @@ def test_matching_get_normalizes_legacy_backend_shape() -> None:
 
     if matching.output.markdown != "# Matching":
         raise AssertionError("Expected markdown to normalize from top-level payload")
-    if matching.context != "hiring_team_fit":
+    if matching.context != "behavioral_compatibility":
         raise AssertionError("Expected context to normalize correctly")
     if matching.target is None or matching.target.entity_id != "ent_target":
         raise AssertionError("Expected target to normalize correctly")
@@ -139,7 +139,7 @@ def test_matching_create_accepts_canonical_subjects() -> None:
 
     try:
         receipt = conduit.matching.create(
-            context="hiring_team_fit",
+            context="behavioral_compatibility",
             target={"entity_id": "ent_target"},
             group=[
                 {

@@ -44,7 +44,7 @@ from .models import (
     WebhookEvent,
 )
 from .types import (
-    MATCHING_CONTEXT_HIRING_TEAM_FIT,
+    MATCHING_CONTEXT_BEHAVIORAL_COMPATIBILITY,
     REPORT_TEMPLATE_GENERAL_REPORT,
     REPORT_TEMPLATE_SALES_PLAYBOOK,
     CancelSignal,
@@ -69,7 +69,7 @@ from .types import (
 TimeoutError = SDKTimeoutError
 
 __all__ = [
-    "MATCHING_CONTEXT_HIRING_TEAM_FIT",
+    "MATCHING_CONTEXT_BEHAVIORAL_COMPATIBILITY",
     "REPORT_TEMPLATE_GENERAL_REPORT",
     "REPORT_TEMPLATE_SALES_PLAYBOOK",
     "ApiError",

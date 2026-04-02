@@ -207,7 +207,7 @@ Matching is also receipt-first and asynchronous.
 
 ```python
 matching_receipt = conduit.matching.create(
-    context="hiring_team_fit",
+    context="behavioral_compatibility",
     target={"entity_id": "ent_candidate"},
     group=[
         {"entity_id": "ent_manager"},
@@ -224,7 +224,7 @@ print(matching_receipt.job_id)
 
 ### Matching constraints
 
-- `context` is currently a closed enum and must be `hiring_team_fit`.
+- `context` is currently a closed enum and must be `behavioral_compatibility`.
 - `target` must be exactly one matching subject.
 - `group` must contain at least one matching subject.
 - A matching subject must be either `{"entity_id": ...}` or `{"media_id": ..., "selector": ...}`.

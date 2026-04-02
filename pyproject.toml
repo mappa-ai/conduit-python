@@ -1,6 +1,6 @@
 [project]
 name = "mappa-conduit"
-version = "0.2.1"
+version = "0.2.2"
 description = "Official Python SDK for the Conduit API"
 readme = "README.md"
 license = "MIT"
@@ -60,6 +60,7 @@ reportUnknownVariableType = "error"
 reportUnnecessaryCast = "error"
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.ruff]

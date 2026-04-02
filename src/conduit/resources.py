@@ -796,8 +796,10 @@ def _normalize_timerange_target(
 
 def _normalize_matching_context(context: MatchingContext | str) -> str:
     normalized = _string_value(context, "context")
-    if normalized != "hiring_team_fit":
-        raise ConduitError("context must be hiring_team_fit", code="invalid_request")
+    if normalized != "behavioral_compatibility":
+        raise ConduitError(
+            "context must be behavioral_compatibility", code="invalid_request"
+        )
     return normalized
 
 
