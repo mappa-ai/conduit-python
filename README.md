@@ -5,9 +5,10 @@ package source from the main Conduit monorepo. The SDK is maintained as part of
 the main project; this repository exists to provide a focused public package
 home for Python consumers.
 
-Conduit is a behavioral intelligence API with two stable workflows:
+Conduit is a behavioral intelligence API with three stable workflows:
 
 - `reports` turns a recording into a structured behavioral report for a selected speaker.
+- `psychometrics` returns the direct psychometric trait payload for one selected speaker.
 - `matching` compares one target against a group in a closed interpretation context.
 
 The Python package name is `mappa-conduit`. The import surface is `conduit`.
@@ -28,6 +29,8 @@ The stable public surface is:
 
 - `conduit.reports.create(...)`
 - `conduit.reports.get(...)`
+- `conduit.psychometrics.create(...)`
+- `conduit.psychometrics.get(...)`
 - `conduit.matching.create(...)`
 - `conduit.matching.get(...)`
 - `conduit.webhooks.verify_signature(...)`
@@ -36,12 +39,13 @@ The stable public surface is:
 - `conduit.primitives.media.*`
 - `conduit.primitives.jobs.*`
 
-Use `reports` first. `matching` is also stable. `primitives` is the advanced,
+Use `reports` first. `psychometrics` and `matching` are also stable. `primitives` is the advanced,
 lower-level surface for upload, reuse, inspection, and backoffice flows.
 
 ## Choose a workflow
 
-- Use `reports.create(...)` when you want to analyze one speaker from a recording.
+- Use `reports.create(...)` when you want the async report workflow.
+- Use `psychometrics.create(...)` when you want the direct trait payload for one speaker.
 - Use `matching.create(...)` when you want to compare one target against a group.
 - Use webhooks as the primary completion path in production.
 - Use `receipt.handle.wait()` for local scripts and development.
@@ -200,6 +204,26 @@ maybe_report = receipt.handle.report()
 if maybe_report is not None:
     print(maybe_report.id)
 ```
+
+## Psychometrics
+
+Psychometrics is the additional stable sync workflow for direct trait-map access.
+
+```python
+result = conduit.psychometrics.create(
+    source={"path": "recordings/demo-call.wav"},
+    target={"strategy": "magic_hint", "hint": "the candidate"},
+)
+
+print(result.analysis_id)
+print(result.psychometrics["conscientiousness"])
+```
+
+Stable psychometrics constraints:
+
+- `source` accepts exactly one variant: `file`, `url`, or `path`.
+- `target.strategy` is currently `dominant` or `magic_hint` only.
+- `psychometrics.get(analysis_id)` fetches a previously completed analysis.
 
 ## Matching
 

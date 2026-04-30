@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from ._transport import Transport
 from .errors import InitializationError
+from .psychometrics import PsychometricsResource
 from .resources import (
     EntitiesResource,
     JobsResource,
@@ -65,6 +66,7 @@ class Conduit:
         media = MediaResource(source_manager, self._transport)
         self.reports = ReportsResource(self._transport, jobs, media)
         self.matching = MatchingResource(self._transport, jobs)
+        self.psychometrics = PsychometricsResource(source_manager, self._transport)
         self.webhooks = WebhooksResource()
         self.primitives = PrimitivesResource(
             entities=EntitiesResource(self._transport),
