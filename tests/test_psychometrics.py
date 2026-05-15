@@ -9,23 +9,9 @@ from conduit import Conduit, ConduitError, InvalidSourceError
 
 EXAMPLE_PSYCHOMETRICS = {
     "analysisId": "analysis_123",
-    "confidence": {"overall": 0.81, "source": "signal_heuristic"},
     "createdAt": "2026-04-20T12:00:00.000Z",
     "expiresAt": "2026-04-27T12:00:00.000Z",
-    "model": {
-        "metadata": {"checkpoint": "checkpoint_v2"},
-        "version": "checkpoint_v2",
-    },
     "psychometrics": {"agreeableness": 0.42, "conscientiousness": 0.77},
-    "quality": {
-        "segmentCount": 4,
-        "signal": "high",
-        "sourceAudioDurationSeconds": 91,
-        "speakerCoverageRatio": 0.64,
-        "targetAudioDurationSeconds": 58,
-        "targetUtteranceCount": 12,
-    },
-    "selectedSpeaker": {"speakerIndex": 1, "strategy": "magic_hint"},
 }
 
 
@@ -74,8 +60,11 @@ def test_psychometrics_create_posts_multipart_and_parses_result() -> None:
 
     if result.analysis_id != "analysis_123":
         raise AssertionError("Expected analysis_id to parse correctly")
-    if result.selected_speaker.strategy != "magic_hint":
-        raise AssertionError("Expected selected speaker strategy to parse correctly")
+    if any(
+        hasattr(result, field_name)
+        for field_name in ("confidence", "model", "quality", "selected_speaker")
+    ):
+        raise AssertionError("Expected metadata fields to stay off the public result")
 
 
 def test_psychometrics_get_fetches_analysis() -> None:
@@ -109,8 +98,11 @@ def test_psychometrics_get_fetches_analysis() -> None:
     finally:
         conduit.close()
 
-    if result.model.version != "checkpoint_v2":
-        raise AssertionError("Expected model.version to parse correctly")
+    if any(
+        hasattr(result, field_name)
+        for field_name in ("confidence", "model", "quality", "selected_speaker")
+    ):
+        raise AssertionError("Expected metadata fields to stay off the public result")
     if result.psychometrics["conscientiousness"] != 0.77:
         raise AssertionError("Expected psychometrics values to parse correctly")
 

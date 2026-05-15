@@ -44,11 +44,7 @@ from .models import (
     WebhookEvent,
 )
 from .psychometrics import (
-    PsychometricsConfidence,
-    PsychometricsModelInfo,
-    PsychometricsQuality,
     PsychometricsResult,
-    PsychometricsSelectedSpeaker,
     PsychometricsSource,
     PsychometricsSourceFile,
     PsychometricsSourcePath,
@@ -115,11 +111,7 @@ __all__ = [
     "MediaFile",
     "MediaObject",
     "OnMiss",
-    "PsychometricsConfidence",
-    "PsychometricsModelInfo",
-    "PsychometricsQuality",
     "PsychometricsResult",
-    "PsychometricsSelectedSpeaker",
     "PsychometricsSource",
     "PsychometricsSourceFile",
     "PsychometricsSourcePath",

@@ -63,53 +63,13 @@ PsychometricsTargetSelector = (
 
 
 @dataclass(slots=True)
-class PsychometricsConfidence:
-    """Confidence metadata returned by the psychometrics endpoint."""
-
-    overall: float
-    source: Literal["signal_heuristic"]
-
-
-@dataclass(slots=True)
-class PsychometricsQuality:
-    """Quality metadata returned by the psychometrics endpoint."""
-
-    segment_count: int
-    signal: Literal["low", "medium", "high"]
-    source_audio_duration_seconds: float
-    speaker_coverage_ratio: float
-    target_audio_duration_seconds: float
-    target_utterance_count: int
-
-
-@dataclass(slots=True)
-class PsychometricsSelectedSpeaker:
-    """Resolved speaker selection for the psychometrics analysis."""
-
-    speaker_index: int
-    strategy: PsychometricsTargetStrategy
-
-
-@dataclass(slots=True)
-class PsychometricsModelInfo:
-    """Model metadata returned by the psychometrics endpoint."""
-
-    metadata: dict[str, str]
-    version: str | None
-
-
-@dataclass(slots=True)
 class PsychometricsResult:
     """Completed psychometrics analysis."""
 
     analysis_id: str
-    confidence: PsychometricsConfidence
     created_at: str
     expires_at: str
-    model: PsychometricsModelInfo
     psychometrics: dict[str, float]
-    quality: PsychometricsQuality
-    selected_speaker: PsychometricsSelectedSpeaker
 
 
 class PsychometricsResource:
@@ -185,60 +145,11 @@ class PsychometricsResource:
 def parse_psychometrics_result(value: object) -> PsychometricsResult:
     """Parse a completed psychometrics response payload."""
     data = _mapping(value, "psychometrics result")
-    confidence_data = _mapping(data.get("confidence"), "psychometrics.confidence")
-    quality_data = _mapping(data.get("quality"), "psychometrics.quality")
-    model_data = _mapping(data.get("model"), "psychometrics.model")
-    selected_speaker_data = _mapping(
-        data.get("selectedSpeaker"),
-        "psychometrics.selectedSpeaker",
-    )
-    metadata_data = _mapping(model_data.get("metadata"), "psychometrics.model.metadata")
     return PsychometricsResult(
         analysis_id=_string_value(data.get("analysisId"), "analysisId"),
-        confidence=PsychometricsConfidence(
-            overall=_float_value(confidence_data.get("overall"), "confidence.overall"),
-            source=_signal_source(confidence_data.get("source"), "confidence.source"),
-        ),
         created_at=_string_value(data.get("createdAt"), "createdAt"),
         expires_at=_string_value(data.get("expiresAt"), "expiresAt"),
-        model=PsychometricsModelInfo(
-            metadata=_string_dict(metadata_data, "model.metadata"),
-            version=_optional_string(model_data.get("version")),
-        ),
         psychometrics=_float_dict(data.get("psychometrics"), "psychometrics"),
-        quality=PsychometricsQuality(
-            segment_count=_int_value(
-                quality_data.get("segmentCount"),
-                "quality.segmentCount",
-            ),
-            signal=_quality_signal(quality_data.get("signal"), "quality.signal"),
-            source_audio_duration_seconds=_float_value(
-                quality_data.get("sourceAudioDurationSeconds"),
-                "quality.sourceAudioDurationSeconds",
-            ),
-            speaker_coverage_ratio=_float_value(
-                quality_data.get("speakerCoverageRatio"),
-                "quality.speakerCoverageRatio",
-            ),
-            target_audio_duration_seconds=_float_value(
-                quality_data.get("targetAudioDurationSeconds"),
-                "quality.targetAudioDurationSeconds",
-            ),
-            target_utterance_count=_int_value(
-                quality_data.get("targetUtteranceCount"),
-                "quality.targetUtteranceCount",
-            ),
-        ),
-        selected_speaker=PsychometricsSelectedSpeaker(
-            speaker_index=_int_value(
-                selected_speaker_data.get("speakerIndex"),
-                "selectedSpeaker.speakerIndex",
-            ),
-            strategy=_target_strategy_literal(
-                selected_speaker_data.get("strategy"),
-                "selectedSpeaker.strategy",
-            ),
-        ),
     )
 
 
@@ -274,11 +185,6 @@ def _float_value(value: object, name: str) -> float:
     if isinstance(value, int | float) and not isinstance(value, bool):
         return float(value)
     raise ConduitError(f"Invalid {name}: expected number", code="invalid_response")
-
-
-def _int_value(value: object, name: str) -> int:
-    number = _float_value(value, name)
-    return int(number)
 
 
 def _mapping(value: object, name: str) -> Mapping[str, object]:
@@ -323,46 +229,6 @@ def _optional_request_string(value: object | None) -> str | None:
         "request field must be a string when provided",
         code="invalid_request",
     )
-
-
-def _optional_string(value: object | None) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    raise ConduitError(
-        "Invalid response: expected string or null",
-        code="invalid_response",
-    )
-
-
-def _quality_signal(
-    value: object,
-    name: str,
-) -> Literal["low", "medium", "high"]:
-    if value in {"low", "medium", "high"}:
-        return cast('Literal["low", "medium", "high"]', value)
-    raise ConduitError(
-        f"Invalid {name}: expected low, medium, or high",
-        code="invalid_response",
-    )
-
-
-def _signal_source(value: object, name: str) -> Literal["signal_heuristic"]:
-    if value == "signal_heuristic":
-        return "signal_heuristic"
-    raise ConduitError(
-        f"Invalid {name}: expected signal_heuristic",
-        code="invalid_response",
-    )
-
-
-def _string_dict(value: object, name: str) -> dict[str, str]:
-    mapping = _mapping(value, name)
-    normalized: dict[str, str] = {}
-    for key, item in mapping.items():
-        normalized[str(key)] = _string_value(item, f"{name}[{key}]")
-    return normalized
 
 
 def _string_value(value: object, name: str) -> str:
@@ -416,12 +282,8 @@ def _target_strategy_literal(
 
 
 __all__ = [
-    "PsychometricsConfidence",
-    "PsychometricsModelInfo",
-    "PsychometricsQuality",
     "PsychometricsResource",
     "PsychometricsResult",
-    "PsychometricsSelectedSpeaker",
     "PsychometricsSource",
     "PsychometricsSourceFile",
     "PsychometricsSourcePath",
