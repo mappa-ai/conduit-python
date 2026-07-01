@@ -11,6 +11,7 @@ REPORT_TEMPLATE_SALES_PLAYBOOK = "sales_playbook"
 MATCHING_CONTEXT_BEHAVIORAL_COMPATIBILITY = "behavioral_compatibility"
 
 ReportTemplate = Literal["general_report", "sales_playbook"]
+ReportLanguage = Literal["en", "es", "pt"]
 MatchingContext = Literal["behavioral_compatibility"]
 OnMiss = Literal["error", "fallback_dominant"]
 TargetStrategy = Literal["dominant", "timerange", "entity_id", "magic_hint"]
@@ -183,6 +184,7 @@ __all__ = [
     "MatchingMediaRef",
     "MatchingSubjectRef",
     "OnMiss",
+    "ReportLanguage",
     "ReportOutput",
     "ReportSource",
     "ReportSourceFile",

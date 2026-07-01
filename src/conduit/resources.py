@@ -55,6 +55,7 @@ if TYPE_CHECKING:
         HeaderMapping,
         MatchingContext,
         MatchingSubjectRef,
+        ReportLanguage,
         ReportOutput,
         ReportSource,
         TargetSelector,
@@ -481,6 +482,7 @@ class ReportsResource:
         source: ReportSource,
         output: ReportOutput,
         target: TargetSelector,
+        language: ReportLanguage | None = None,
         webhook: WebhookConfig | None = None,
         idempotency_key: str | None = None,
         request_id: str | None = None,
@@ -499,6 +501,8 @@ class ReportsResource:
             "output": _normalize_report_output(output),
             "target": _normalize_target_selector(target),
         }
+        if language is not None:
+            body["language"] = language
         normalized_webhook = _normalize_webhook(webhook)
         if normalized_webhook is not None:
             body["webhook"] = normalized_webhook
