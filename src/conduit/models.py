@@ -258,6 +258,25 @@ class MediaFile:
 
 
 @dataclass(slots=True)
+class MediaSpeaker:
+    """Diarized speaker summary for one media file."""
+
+    speaker_index: int
+    speech_seconds: float
+    transcript: str
+
+
+@dataclass(slots=True)
+class MediaSpeakers:
+    """Diarized speakers detected in one media file."""
+
+    media_id: str
+    status: str
+    duration_seconds: float | None
+    speakers: list[MediaSpeaker]
+
+
+@dataclass(slots=True)
 class FileDeleteReceipt:
     """Media delete receipt."""
 
@@ -526,6 +545,33 @@ def parse_list_files(value: object) -> ListFilesResponse:
     )
 
 
+def parse_media_speakers(value: object) -> MediaSpeakers:
+    """Parse diarized speaker summaries for one media file."""
+    data = _mapping(value, "media speakers")
+    speakers = data.get("speakers")
+    if not isinstance(speakers, list):
+        raise ConduitError(
+            "Invalid media speakers: expected speakers array",
+            code="invalid_response",
+        )
+    speaker_items = cast("list[object]", speakers)
+    return MediaSpeakers(
+        media_id=_string(data.get("mediaId"), "speakers.mediaId"),
+        status=_string(data.get("status"), "speakers.status"),
+        duration_seconds=_optional_float(data.get("durationSeconds")),
+        speakers=[_parse_media_speaker(item) for item in speaker_items],
+    )
+
+
+def _parse_media_speaker(value: object) -> MediaSpeaker:
+    data = _mapping(value, "media speaker")
+    return MediaSpeaker(
+        speaker_index=int(_float(data.get("speakerIndex"), "speaker.speakerIndex")),
+        speech_seconds=_float(data.get("speechSeconds"), "speaker.speechSeconds"),
+        transcript=_string(data.get("transcript"), "speaker.transcript"),
+    )
+
+
 def parse_delete_receipt(value: object) -> FileDeleteReceipt:
     """Parse a media delete receipt."""
     data = _mapping(value, "delete receipt")
@@ -613,6 +659,8 @@ __all__ = [
     "MediaFile",
     "MediaObject",
     "MediaRetention",
+    "MediaSpeaker",
+    "MediaSpeakers",
     "Report",
     "ReportOutputData",
     "RetentionLockResult",
@@ -628,6 +676,7 @@ __all__ = [
     "parse_matching_subject",
     "parse_media_file",
     "parse_media_object",
+    "parse_media_speakers",
     "parse_report",
     "parse_retention_lock",
     "parse_webhook_event",

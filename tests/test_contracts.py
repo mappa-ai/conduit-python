@@ -166,3 +166,89 @@ def test_matching_create_accepts_canonical_subjects() -> None:
     ]
     if seen_body["group"] != expected_group:
         raise AssertionError("Expected canonical group ref to adapt to backend wire")
+
+
+def test_media_speakers_returns_untruncated_transcripts() -> None:
+    """Parse full per-speaker transcripts."""
+    long_text = f"{'word ' * 120}end".strip()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method != "GET" or request.url.path != "/v1/files/med_123/speakers":
+            raise AssertionError(
+                f"Unexpected request: {request.method} {request.url.path}"
+            )
+        return httpx.Response(
+            200,
+            json={
+                "durationSeconds": 412.5,
+                "mediaId": "med_123",
+                "speakers": [
+                    {
+                        "speakerIndex": 0,
+                        "speechSeconds": 240.1,
+                        "transcript": long_text,
+                    },
+                    {
+                        "speakerIndex": 1,
+                        "speechSeconds": 172.4,
+                        "transcript": "Sure, happy to walk through pricing.",
+                    },
+                ],
+                "status": "ready",
+            },
+            request=request,
+        )
+
+    conduit = Conduit(
+        api_key="sk_test",
+        base_url="http://testserver",
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(handler), base_url="http://testserver"
+        ),
+    )
+
+    try:
+        summary = conduit.primitives.media.speakers("med_123")
+    finally:
+        conduit.close()
+
+    if summary.status != "ready" or summary.duration_seconds != 412.5:
+        raise AssertionError("Expected status and duration to parse correctly")
+    if [speaker.speaker_index for speaker in summary.speakers] != [0, 1]:
+        raise AssertionError("Expected speaker indexes to parse in order")
+    if summary.speakers[0].transcript != long_text:
+        raise AssertionError("Expected the untruncated transcript to parse")
+
+
+def test_media_speakers_parses_processing_media() -> None:
+    """Parse a media file that has not finished diarization yet."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "durationSeconds": None,
+                "mediaId": "med_123",
+                "speakers": [],
+                "status": "processing",
+            },
+            request=request,
+        )
+
+    conduit = Conduit(
+        api_key="sk_test",
+        base_url="http://testserver",
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(handler), base_url="http://testserver"
+        ),
+    )
+
+    try:
+        summary = conduit.primitives.media.speakers("med_123")
+    finally:
+        conduit.close()
+
+    if summary.status != "processing" or summary.duration_seconds is not None:
+        raise AssertionError("Expected processing status with null duration")
+    if summary.speakers:
+        raise AssertionError("Expected no speakers while processing")

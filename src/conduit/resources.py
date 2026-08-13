@@ -29,6 +29,7 @@ from .models import (
     Matching,
     MediaFile,
     MediaObject,
+    MediaSpeakers,
     Report,
     RetentionLockResult,
     WebhookEvent,
@@ -40,6 +41,7 @@ from .models import (
     parse_list_files,
     parse_matching,
     parse_media_file,
+    parse_media_speakers,
     parse_report,
     parse_retention_lock,
     parse_webhook_event,
@@ -386,6 +388,21 @@ class MediaResource:
             retryable=True,
         )
         return parse_media_file(response.data)
+
+    def speakers(
+        self,
+        media_id: str,
+        *,
+        request_id: str | None = None,
+    ) -> MediaSpeakers:
+        """Fetch diarized speaker summaries for a media resource."""
+        response = self._transport.request(
+            "GET",
+            f"/v1/files/{_path_segment(media_id, 'media_id')}/speakers",
+            request_id=request_id,
+            retryable=True,
+        )
+        return parse_media_speakers(response.data)
 
     def list(
         self,
